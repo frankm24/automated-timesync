@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
+
+logger = logging.getLogger(__name__)
 
 # Keep already-synced IDs around long enough to absorb late edits in Clockify
 # without unbounded growth.
@@ -47,9 +50,16 @@ def load_state(path: Path) -> SyncState:
     if not raw.strip():
         return SyncState()
 
-    parsed: object = json.loads(raw)
+    try:
+        parsed: object = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        # A corrupt state file shouldn't take the service down; the Toggl-side
+        # recovery scan will rebuild the synced-IDs cache on the next run.
+        logger.warning("state file %s is not valid JSON (%s); starting fresh", path, exc)
+        return SyncState()
     if not isinstance(parsed, dict):
-        raise ValueError(f"state file {path} is not a JSON object")
+        logger.warning("state file %s is not a JSON object; starting fresh", path)
+        return SyncState()
     data = cast(dict[str, Any], parsed)
 
     last_sync: dict[str, datetime] = {}
