@@ -1,0 +1,13 @@
+[Unit]
+Description=Run time-sync every 15 minutes
+Requires=time-sync.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+Unit=time-sync.service
+
+[Install]
+WantedBy=timers.target

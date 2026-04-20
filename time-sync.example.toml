@@ -1,0 +1,12 @@
+# Map each Clockify workspace to the Toggl Focus project that should mirror it.
+# Add one [[workspaces]] block per Clockify workspace you want synced.
+
+[[workspaces]]
+name = "Poo Butt Inc."
+clockify_workspace_id = "abcedac68edbb6c893b6"
+toggl_project_id = 142351
+
+# [[workspaces]]
+# name = "Acme Corp"
+# clockify_workspace_id = "REPLACE_ME"
+# toggl_project_id = 0
