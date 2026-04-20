@@ -40,9 +40,11 @@ class SyncResult:
 
 def run_sync(config: Config) -> SyncResult:
     now = datetime.now(timezone.utc)
-    state_existed = config.state_file.exists()
     state = load_state(config.state_file)
     state.prune(now=now)
+    # Trigger the wider Toggl recovery scan whenever we have no synced-IDs
+    # cache to lean on — covers both first-run and corrupt-state-file cases.
+    needs_recovery = not state.synced_ids
 
     # The Toggl scan window must cover the oldest Clockify watermark across
     # all mappings, so we compute it before fetching Clockify data.
@@ -68,12 +70,12 @@ def run_sync(config: Config) -> SyncResult:
         # are globally unique and live in the description as [clk:<id>].
         scan_since = (
             earliest_window
-            if state_existed
+            if not needs_recovery
             else min(earliest_window, now - _RECOVERY_LOOKBACK)
         )
-        if not state_existed:
+        if needs_recovery:
             logger.warning(
-                "no state.json found; recovering synced IDs from Toggl since %s",
+                "no synced-IDs cache; recovering from Toggl since %s",
                 scan_since.isoformat(),
             )
         toggl_dedupe = toggl.already_imported_clockify_ids(
@@ -83,7 +85,7 @@ def run_sync(config: Config) -> SyncResult:
             "found %d Clockify-tagged entries in Toggl for the scan window",
             len(toggl_dedupe),
         )
-        if not state_existed:
+        if needs_recovery:
             for cid in toggl_dedupe:
                 state.mark_synced(cid, now)
             logger.info("repopulated state with %d Clockify IDs from Toggl", len(toggl_dedupe))
