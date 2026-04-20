@@ -1,5 +1,5 @@
 [Unit]
-Description=Sync Clockify time entries into Toggl Track
+Description=Sync Clockify time entries into Toggl Focus
 After=network-online.target
 Wants=network-online.target
 
@@ -11,6 +11,7 @@ User=time-sync
 Group=time-sync
 StateDirectory=time-sync
 Environment=TIME_SYNC_STATE_FILE=/var/lib/time-sync/state.json
+Environment=TIME_SYNC_CONFIG_FILE=/etc/time-sync/time-sync.toml
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
