@@ -48,11 +48,15 @@ def run_sync(config: Config) -> SyncResult:
 
     # The Toggl scan window must cover the oldest Clockify watermark across
     # all mappings, so we compute it before fetching Clockify data.
+    # lookback_hours acts as a floor on every run (not just first-run): the
+    # Clockify `start` filter is by entry start time, so retroactive entries
+    # logged after the watermark advanced would otherwise be missed forever.
+    lookback_floor = now - timedelta(hours=config.lookback_hours)
     per_mapping_windows: dict[str, datetime] = {}
     for mapping in config.mappings:
         watermark = state.watermark(mapping.clockify_workspace_id)
         per_mapping_windows[mapping.clockify_workspace_id] = (
-            watermark or (now - timedelta(hours=config.lookback_hours))
+            min(watermark, lookback_floor) if watermark else lookback_floor
         )
     earliest_window = min(per_mapping_windows.values())
 
