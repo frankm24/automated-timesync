@@ -42,24 +42,26 @@ class SyncState:
         self.synced_ids = {k: v for k, v in self.synced_ids.items() if v >= cutoff}
 
 
-def load_state(path: Path) -> SyncState:
-    if not path.exists():
-        return SyncState()
+def load_state(path: Path) -> tuple[SyncState, bool]:
+    """Return (state, is_fresh). is_fresh=True means the file was missing or
+    unparseable, so the caller should trigger the Toggl recovery scan rather
+    than treat an empty cache as steady-state."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return SyncState(), True
 
-    raw = path.read_text(encoding="utf-8")
     if not raw.strip():
-        return SyncState()
+        return SyncState(), True
 
     try:
         parsed: object = json.loads(raw)
     except json.JSONDecodeError as exc:
-        # A corrupt state file shouldn't take the service down; the Toggl-side
-        # recovery scan will rebuild the synced-IDs cache on the next run.
         logger.warning("state file %s is not valid JSON (%s); starting fresh", path, exc)
-        return SyncState()
+        return SyncState(), True
     if not isinstance(parsed, dict):
         logger.warning("state file %s is not a JSON object; starting fresh", path)
-        return SyncState()
+        return SyncState(), True
     data = cast(dict[str, Any], parsed)
 
     last_sync: dict[str, datetime] = {}
@@ -80,7 +82,7 @@ def load_state(path: Path) -> SyncState:
                 if parsed_value is not None:
                     synced_ids[key] = parsed_value
 
-    return SyncState(last_sync=last_sync, synced_ids=synced_ids)
+    return SyncState(last_sync=last_sync, synced_ids=synced_ids), False
 
 
 def save_state(path: Path, state: SyncState) -> None:

@@ -8,19 +8,16 @@ import sys
 from datetime import datetime, timezone
 
 from .config import Config, ConfigError
+from .state import _parse_iso
 from .sync import run_sync
 
 
 def _parse_since(value: str) -> datetime:
-    cleaned = value.replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(cleaned)
-    except ValueError as exc:
+    parsed = _parse_iso(value)
+    if parsed is None:
         raise argparse.ArgumentTypeError(
             f"--since must be ISO 8601 (e.g. 2026-04-20 or 2026-04-20T00:00:00Z): {value!r}"
-        ) from exc
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        )
     return parsed.astimezone(timezone.utc)
 
 

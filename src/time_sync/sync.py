@@ -42,31 +42,28 @@ def run_sync(config: Config, *, force_since: datetime | None = None) -> SyncResu
     now = datetime.now(timezone.utc)
     if force_since is not None and force_since > now:
         raise ValueError(f"force_since {force_since.isoformat()} is in the future")
-    state = load_state(config.state_file)
+    state, needs_recovery = load_state(config.state_file)
     state.prune(now=now)
-    # Trigger the wider Toggl recovery scan whenever we have no synced-IDs
-    # cache to lean on — covers both first-run and corrupt-state-file cases.
-    needs_recovery = not state.synced_ids
 
     # The Toggl scan window must cover the oldest Clockify watermark across
     # all mappings, so we compute it before fetching Clockify data.
     # lookback_hours acts as a floor on every run (not just first-run): the
     # Clockify `start` filter is by entry start time, so retroactive entries
     # logged after the watermark advanced would otherwise be missed forever.
-    # force_since (CLI override) supersedes both the watermark and the floor.
-    lookback_floor = now - timedelta(hours=config.lookback_hours)
-    per_mapping_windows: dict[str, datetime] = {}
-    for mapping in config.mappings:
-        if force_since is not None:
-            per_mapping_windows[mapping.clockify_workspace_id] = force_since
-            continue
-        watermark = state.watermark(mapping.clockify_workspace_id)
-        per_mapping_windows[mapping.clockify_workspace_id] = (
-            min(watermark, lookback_floor) if watermark else lookback_floor
-        )
-    earliest_window = min(per_mapping_windows.values())
     if force_since is not None:
+        per_mapping_windows: dict[str, datetime] = {
+            m.clockify_workspace_id: force_since for m in config.mappings
+        }
         logger.warning("force_since active: scanning Clockify from %s", force_since.isoformat())
+    else:
+        lookback_floor = now - timedelta(hours=config.lookback_hours)
+        per_mapping_windows = {}
+        for mapping in config.mappings:
+            watermark = state.watermark(mapping.clockify_workspace_id)
+            per_mapping_windows[mapping.clockify_workspace_id] = (
+                min(watermark, lookback_floor) if watermark else lookback_floor
+            )
+    earliest_window = min(per_mapping_windows.values())
 
     with (
         ClockifyClient(api_key=config.clockify_api_key) as clockify,
